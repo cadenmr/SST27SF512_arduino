@@ -10,7 +10,7 @@ unsigned char data_pins[8] = {38, 40, 42, 44, 46, 48, 50, 52};
 // constants
 const unsigned char comm_rdy =  0xFF;
 const unsigned char comm_ack = 0xFE;
-const unsigned char comm_pause = 0xFD;
+const unsigned char comm_done = 0xFD;
 const unsigned int chip_size = 65535;
 const byte chip_size_buf[] = {0xFF, 0xFF};
 
@@ -19,105 +19,112 @@ unsigned char state = 0;
 bool running = false;
 
 void setup() {
+
   Serial.begin(115200);  // begin serial communication @ 115200 baud
   Serial.setTimeout(2000); // 2 sec timeout
-  while (!Serial) {  // wait for serial port to connect
-    ;
-  }
+
+  while (!Serial) {;}  // wait for serial port to connect
+
 }
 
 void loop() {
 
 	switch(state) {  // what state are we in?
   
-    case 0:  // STATE: connection validation & mode select
-      {
-        if (Serial.available() > 0) {  // wait for incoming data
-          switch(Serial.read()){  // what did we get?
-            case comm_rdy:  // rx RDY?
-              Serial.write(comm_ack);  // tx comm_ack
-              break;
-  
-            case 0x10:  // rx READ
-              state = 1;
-              break;
-  
-            case 0x20:  // rx WRITE
-              state = 2;
-              break;
-          }
-        }
-        break;
-      }
+      case 0:  // STATE: connection validation & mode select
+        {
+          if (Serial.available() > 0) {  // wait for incoming data
 
-    case 1:  // STATE: chip read
-      {
-        if (!running) {
-          // send the chip size (0xFFFF)
-          Serial.write(chip_size_buf, 2);
-  
-          // check for a valid response after sending chip size
-          byte in_data[1] = {0x00};
-          if (Serial.readBytes(in_data, 1) == 0) { // timed out
-            state = 0;
-          } else if (in_data[0] != comm_ack) {  // check if we got a good ack
-            state = 0;
-          } else {  // we passed all checks. break out
-            running = true;
-            delay(25);  // 25 ms delay before continue
-          }
-        }
+            switch(Serial.read()) {  // what did we get?
 
-        // set up our pins
-        read_init();
+              case comm_rdy:  // recived comm_rdy
+                Serial.write(comm_ack);  // recived comm_ack
+                break;
 
-        // we have to use an infinite while loop here because we can't detect 
-        // an overflow with a for loop
-        unsigned int addr = 0;
-        while (true){
-          unsigned char data = read_byte(addr);
-          Serial.write(data);  // send the data off
-          
-          addr++;  // increment the address counter
-          
-          if (addr == 0) {break;}  // if we've overflowed, we're done
-        }
-        
-        state = 0;
-        running = false;
-        break;
-      }
-      
-    case 2:  // STATE: chip write
-      {
+              case 0x10:  // recived read mode selection
+                state = 1;
+                break;
 
-        write_init();  // initialize for writing
+              case 0x20:  // recived write mode selection
+                state = 2;
+                break;
 
-        unsigned int addr = 0;
-        bool sent_ready = false;
-        while (true) {
-
-          if (Serial.available() > 0) {  // if we've recieved data
-
-            sent_ready = false;
-
-            unsigned char rx_byte = Serial.read();  // read one byte
-
-            write_byte(addr, rx_byte);
-            addr++;
-
-            if (addr == 0) {Serial.println("DONE!"); break;} // we've overflowed, we're done.
-
-          } else {
-            if (!sent_ready) {
-              Serial.write(comm_rdy);
-              sent_ready = true;
             }
+          }
+          break;
         }
+
+      case 1:  // chip reading routine
+        {
+          if (!running) {
+
+            Serial.write(chip_size_buf, 2);  // send the chip size (0xFFFF)
+
+            // check for a valid response after sending chip size
+            byte in_data[1] = {0x00};
+            if (Serial.readBytes(in_data, 1) == 0) { // timed out
+              state = 0;
+            } else if (in_data[0] != comm_ack) {  // check if we got a good ack
+              state = 0;
+            } else {  // we passed all checks. break out
+              running = true;
+              delay(25);  // 25 ms delay before continue
+            }
+          }
+
+          read_init();  // initialize for reading
+
+          // read each byte and send it out
+          unsigned int addr = 0x00;  // address counter starts at zero
+          while (true){
+            unsigned char data = read_byte(addr);
+            Serial.write(data);  // send the data off
+
+            addr++;  // increment the address counter
+
+            if (addr == 0x00) {break;}  // if we've overflowed, we're done
+          }
+
+          state = 0;  // go back to the mode selection
+          running = false;  // stop running
+          break;
+        }
+
+      case 2:  // chip writing routine
+        {
+
+          write_init();  // initialize for writing
+
+          unsigned int addr = 0x00;  // start the address counter at zero
+          bool sent_ready = false;  // remember if we've sent the "ready for more data" signal or not
+          running = true;  // start running
+          while (true) {
+
+            if (Serial.available() > 0 && running) {  // if we've recieved data and we're running
+
+              sent_ready = false;  // we're going to need to send "ready" again. unset the var
+
+              unsigned char rx_byte = Serial.read();  // read one byte from serial input
+              write_byte(addr, rx_byte);  // write the byte to the chip
+
+              addr++;  // increment the address
+
+              if (addr == 0x00) {  // we've overflowed back to zero, we're done.
+                running = false;  // we're no longer running. unset the var
+                break;  // we're done
+              }
+
+            } else {  // if our buffer is empty
+              if (!sent_ready && running) {  // if we haven't sent the ready message yet and we're running
+                Serial.write(comm_rdy);  // send the ready message
+                sent_ready = true;  // set the var so we don't send it again
+              }
+          }
+        }
+        state = 0;  // go back to mode select
+        Serial.write(comm_done);  // send the "done" signal
+        break;
       }
-      state = 0;
-      break;
-	}
   }
 }
 
@@ -127,17 +134,17 @@ void read_init() {
   pinMode(ce_pin, OUTPUT);
   pinMode(oe_pin, OUTPUT);
 
-  // set up control pins while we finish setup
+  // set up control pins while we finish
   digitalWrite(ce_pin, HIGH);
   digitalWrite(oe_pin, HIGH);
 
-  // set up address pins as outputs
-  for (char i = 0; i < 16; i++) {
+  // go through address pin array and set all as outputs
+  for (unsigned char i = 0; i < 16; i++) {
     pinMode(addr_pins[i], OUTPUT);
   }
 
-  // set up data pins as inputs
-  for (char i = 0; i < 8; i++) {
+  // go through data pin array and set all as outputs
+  for (unsigned char i = 0; i < 8; i++) {
     pinMode(data_pins[i], INPUT);
   }
 
@@ -149,17 +156,17 @@ void write_init() {
   pinMode(ce_pin, OUTPUT);
   pinMode(oe_pin, OUTPUT);
 
-  // set up control pins while we finish setup
+  // set up control pins while we finish
   digitalWrite(ce_pin, HIGH);
-  digitalWrite(oe_pin, HIGH);
+  digitalWrite(oe_pin, LOW);
 
-  // set up address pins as outputs
-  for (char i = 0; i < 16; i++) {
+  // go through address pin array and set all as outputs
+  for (unsigned char i = 0; i < 16; i++) {
     pinMode(addr_pins[i], OUTPUT);
   }
 
-  // set up data pins as outputs
-  for (char i = 0; i < 8; i++) {
+  // go through data pin array and set all as outputs
+  for (unsigned char i = 0; i < 8; i++) {
     pinMode(data_pins[i], OUTPUT);
   }
 
@@ -167,19 +174,16 @@ void write_init() {
 
 byte read_byte(unsigned int address) {
 
-  byte out_data = 0x00;
-
   // de-assert the control signals
   digitalWrite(ce_pin, HIGH);
   digitalWrite(oe_pin, HIGH);
 
   // set up the address lines
-  unsigned int addr_pin_sel = 0b0000000000000001;
-  for (char i = 0; i < 16; i++) {  // go through each pin starting at index 0 (D0) to 15 (D15)
+  unsigned int addr_pin_sel = 0b0000000000000001;  // used to select which pin we want
+  for (unsigned char i = 0; i < 16; i++) {  // go through each address pin (starting at A0) and set it appropriately
 
     bool pin_state = false;
-    // check if we want this pin on or off
-    // shift the pin select variable by the index and bitwise AND with the address variable
+    // shift the pin select variable by the index, then bitwise AND with the address variable
     // if the result is not zero, we want the pin on
     if (((addr_pin_sel << i) & address) != 0) {
       pin_state = true;
@@ -189,12 +193,11 @@ byte read_byte(unsigned int address) {
 
   }
 
-  // assert chip enable and output enable
+  // assert control signals
   digitalWrite(ce_pin, LOW);
   digitalWrite(oe_pin, LOW);
 
-  // wait the required time
-  delay(0.001);
+  delayMicroseconds(2);  // wait the required time
 
   // we should have valid data now. read the pins and store in array
   unsigned char read_pins[8] = {0, 0, 0, 0, 0, 0, 0, 0};
@@ -203,8 +206,9 @@ byte read_byte(unsigned int address) {
   }
 
   // make our data byte from the array of bits
-  // bitwise OR the out data byte with the bit state, shifted left by the index
-  for (char i = 0; i < 8; i++) {
+  // shift the desired pin reading left by its index, then bitwise OR the data byte by the result
+  byte out_data = 0x00;
+  for (unsigned char i = 0; i < 8; i++) {
     out_data = out_data | (read_pins[i] << i);
   }
 
@@ -218,45 +222,40 @@ byte read_byte(unsigned int address) {
 
 void write_byte(unsigned int address, unsigned char data) {
 
-  digitalWrite(ce_pin, HIGH);
-  digitalWrite(oe_pin, HIGH);
+  digitalWrite(ce_pin, HIGH);  // de-assert control signal
 
   // set up the address lines
-  const unsigned int addr_pin_sel = 0b0000000000000001;
-  for (unsigned char i = 0; i < 16; i++) {  // go through each pin starting at index 0 (D0) to 15 (D15)
+  const unsigned int addr_pin_sel = 0b0000000000000001;  // used to select which pin we want
+  for (unsigned char i = 0; i < 16; i++) {  // go through each address pin (starting at A0) and set it appropriately
 
     bool pin_state = false;
-    // check if we want this pin on or off
-    // shift the pin select variable by the index and bitwise AND with the address variable
+    // shift the pin select variable by the index, then bitwise AND with the address variable
     // if the result is not zero, we want the pin on
     if (((addr_pin_sel << i) & address) != 0) {
       pin_state = true;
     }
 
-    digitalWrite(addr_pins[i], pin_state);
+    digitalWrite(addr_pins[i], pin_state);  // write it to the pin
 
   }
 
-  const unsigned char data_pin_sel = 0b00000001;
-  for (unsigned char i = 0; i < 8; i++) {
+  // set up the data lines
+  const unsigned char data_pin_sel = 0b00000001;  // used to select which pin we want
+  for (unsigned char i = 0; i < 8; i++) {  // go through each data pin (starting at D0) and set it appropriately
     
     bool pin_state = false;
-    // check if we want this pin on or off
-    // shift the pin select variable by the index and bitwise AND with the address variable
+    // shift the pin select variable by the index, then bitwise AND with the data variable
     // if the result is not zero, we want the pin on
-    if (((data_pin_sel >> i) & address) != 0) {
+    if (((data_pin_sel << i) & data) != 0) {
       pin_state = true;
     }
 
-    digitalWrite(data_pins[i], pin_state);
+    digitalWrite(data_pins[i], pin_state);  // write it to the pin
     
   }
 
-  delay(0.02);  // wait for the required time
   digitalWrite(ce_pin, LOW);  // assert control signals
-  digitalWrite(oe_pin, LOW);
-  delay(0.02);  // wait for the required time
+  delayMicroseconds(18);  // wait for the required time, accounting for slow digitalWrite
   digitalWrite(ce_pin, HIGH);  // de-assert control signals
-  digitalWrite(oe_pin, HIGH);
   
 }
