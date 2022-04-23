@@ -58,6 +58,7 @@ if __name__ == '__main__':
 
                 tx_data = binfile.read(1)  # pull the next byte from the file
                 ser.write(tx_data)  # send the data out
+                addr+=1
 
                 # break out if we've sent enough data or we don't have any left
                 if i > 50 or tx_data == b'':
@@ -66,7 +67,10 @@ if __name__ == '__main__':
                 print(f'flashing: {round((addr/correct_filesize)*100, 1)}% complete...', end='\r')
 
                 i+=1
-                addr+=1
 
         elif rx_data == b'\xFD':
-            print('\ndone                                ')
+            print('done                                ')
+            break
+
+    binfile.close()
+    ser.close()
