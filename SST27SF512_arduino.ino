@@ -1,11 +1,11 @@
 // pin assignments
 // control signals
-#define ce_pin 22
-#define oe_pin 24
+#define ce_pin 2
+#define oe_pin 3
 // address (A0, A1 ... A15)
 unsigned char addr_pins[16] = {23, 25, 27, 29, 31, 33, 35, 37, 39, 41, 43, 45, 47, 49, 51, 53};
 // data (D0, D1 ... D7)
-unsigned char data_pins[8] = {38, 40, 42, 44, 46, 48, 50, 52};
+unsigned char data_pins[8] = {36, 34, 32, 30, 28, 26, 24, 22};
 
 // constants
 const unsigned char comm_rdy =  0xFF;
