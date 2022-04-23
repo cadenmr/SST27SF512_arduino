@@ -1,4 +1,4 @@
-import sys,serial
+import sys,serial,time
 
 # This script reads the EEPROM from hex 0000-FFFF.
 
@@ -22,6 +22,15 @@ if __name__ == '__main__':
     except IndexError:
         print('bad filename')
         quit(1)
+
+    time.sleep(1)
+
+    ser.write(b'\xFF')  # ask the arduino if it's working
+    if ser.read(1) != b'\xFE':
+        print('unable to communicate with arduino!')
+        quit(1)
+    else:
+        print('connected!')
 
     if input('type "read" to read >> ') != "read":  # prompt for user confirmation
         print('exiting...')
