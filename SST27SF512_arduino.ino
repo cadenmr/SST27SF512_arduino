@@ -114,7 +114,7 @@ void loop() {
                 break;  // we're done
               }
 
-            } else {  // if our buffer is empty
+            } else if (Serial.available() <= 0 && running) {  // if our buffer is empty
               if (!sent_ready && running) {  // if we haven't sent the ready message yet and we're running
                 Serial.write(comm_rdy);  // send the ready message
                 sent_ready = true;  // set the var so we don't send it again
