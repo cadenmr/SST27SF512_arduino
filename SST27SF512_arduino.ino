@@ -124,6 +124,7 @@ void loop() {
               }
           }
         }
+        digitalWrite(oe_pin, HIGH);  // set output enable to high before returning to normal
         digitalWrite(oe_12v, LOW);  // switch the OE pin relay back to 5v
         state = 0;  // go back to mode select
         Serial.write(comm_done);  // send the "done" signal
