@@ -2,6 +2,7 @@
 // control signals
 #define ce_pin 2
 #define oe_pin 3
+#define oe_12v 6
 // address (A0, A1 ... A15)
 unsigned char addr_pins[16] = {23, 25, 27, 29, 31, 33, 35, 37, 39, 41, 43, 45, 47, 49, 51, 53};
 // data (D0, D1 ... D7)
@@ -94,6 +95,8 @@ void loop() {
         {
 
           write_init();  // initialize for writing
+          digitalWrite(oe_12v, HIGH);  // switch the OE pin relay to 12v mode
+          delay(10)  // 10ms delay for relay to switch
 
           unsigned int addr = 0x00;  // start the address counter at zero
           bool sent_ready = false;  // remember if we've sent the "ready for more data" signal or not
@@ -121,6 +124,7 @@ void loop() {
               }
           }
         }
+        digitalWrite(oe_12v, LOW);  // switch the OE pin relay back to 5v
         state = 0;  // go back to mode select
         Serial.write(comm_done);  // send the "done" signal
         break;
@@ -133,10 +137,12 @@ void read_init() {
 
   pinMode(ce_pin, OUTPUT);
   pinMode(oe_pin, OUTPUT);
+  pinMode(oe_12v, OUTPUT);
 
   // set up control pins while we finish
   digitalWrite(ce_pin, HIGH);
   digitalWrite(oe_pin, HIGH);
+  digitalWrite(oe_12v, LOW);
 
   // go through address pin array and set all as outputs
   for (unsigned char i = 0; i < 16; i++) {
@@ -155,10 +161,12 @@ void write_init() {
 
   pinMode(ce_pin, OUTPUT);
   pinMode(oe_pin, OUTPUT);
+  pinMode(oe_12v, OUTPUT);
 
   // set up control pins while we finish
   digitalWrite(ce_pin, HIGH);
   digitalWrite(oe_pin, LOW);
+  digitalWrite(oe_12v, LOW);
 
   // go through address pin array and set all as outputs
   for (unsigned char i = 0; i < 16; i++) {
