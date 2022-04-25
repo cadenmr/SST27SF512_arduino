@@ -71,27 +71,29 @@ void loop() {
               state = 0;
             } else if (in_data[0] != comm_ack) {  // check if we got a good ack
               state = 0;
-            } else {  // we passed all checks. break out
+            } else {  // we passed all checks. go time.
               running = true;
-              delay(25);  // 25 ms delay before continue
             }
+
+          } else {
+
+            read_init();  // initialize for reading
+
+            // read each byte and send it out
+            unsigned int addr = 0x00;  // address counter starts at zero
+            while (true){
+              unsigned char data = read_byte(addr);
+              Serial.write(data);  // send the data off
+
+              addr++;  // increment the address counter
+
+              if (addr == 0x00) {break;}  // if we've overflowed, we're done
+            }
+
+            running = false;  // stop running
+            state = 0;  // go back to the mode selection
+
           }
-
-          read_init();  // initialize for reading
-
-          // read each byte and send it out
-          unsigned int addr = 0x00;  // address counter starts at zero
-          while (true){
-            unsigned char data = read_byte(addr);
-            Serial.write(data);  // send the data off
-
-            addr++;  // increment the address counter
-
-            if (addr == 0x00) {break;}  // if we've overflowed, we're done
-          }
-
-          state = 0;  // go back to the mode selection
-          running = false;  // stop running
           break;
         }
 

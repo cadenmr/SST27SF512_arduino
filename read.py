@@ -44,7 +44,7 @@ if __name__ == '__main__':
         print(f'got bad response from arduino: got 0x{rx_data.hex().upper()}, should be 0xFFFF')
         quit(1)
 
-    ser.write(b'\xFF')  # tell arduino computer is ready
+    ser.write(b'\xFE')  # tell arduino computer is ready
 
     i = 0  # start index var at zero
     while True:
