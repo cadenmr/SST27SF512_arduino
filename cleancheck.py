@@ -37,23 +37,26 @@ if __name__ == '__main__':
         print(f'got bad response from arduino: got 0x{rx_data.hex().upper()}, should be 0xFFFF')
         quit(1)
 
-    ser.write(b'\xFF')  # tell arduino computer is ready
+    ser.write(b'\xFE')  # tell arduino computer is ready
 
     i = 0  # start index var at zero
+    passed = True
     while True:
         rx_data = ser.read(512)  # read 512 bytes from arduino
 
         if rx_data == b'':  # check if the data we read was null
-            print('PASS                        ')
+            if passed:
+                print('PASS!                        ')
+            else:
+                print('FAIL!                        ')
             break
         else:  # if we have data, check it
 
             a = 0
             for x in rx_data:  # go thru all bytes in recived data
                 if x != 255:
-                    print(f'FAILED: addr {hex(i+a)}, data {hex(x)}')
-                    ser.close()
-                    quit(1)
+                    print(f'ERROR: addr {hex(i+a)}, data {hex(x)}')
+                    passed = False
                 a+=1
 
             print(f'checking: {round((i/correct_filesize)*100, 1)}% complete...', end='\r')
