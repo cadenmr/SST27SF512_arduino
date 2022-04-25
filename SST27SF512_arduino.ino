@@ -96,7 +96,7 @@ void loop() {
 
           write_init();  // initialize for writing
           digitalWrite(oe_12v, HIGH);  // switch the OE pin relay to 12v mode
-          delay(10);  // 10ms delay for relay to switch
+          delay(50);  // 50ms delay for relay to switch
 
           unsigned int addr = 0x00;  // start the address counter at zero
           bool sent_ready = false;  // remember if we've sent the "ready for more data" signal or not
