@@ -50,6 +50,10 @@ void loop() {
                 state = 2;
                 break;
 
+              case 0x30:  // recieved erase mode selection
+                state = 3;
+                break;
+
             }
           }
           break;
@@ -124,12 +128,42 @@ void loop() {
               }
           }
         }
-        digitalWrite(oe_pin, HIGH);  // set output enable to high before returning to normal
-        digitalWrite(oe_12v, LOW);  // switch the OE pin relay back to 5v
-        state = 0;  // go back to mode select
+
+        // finish write sequence as per datasheet
+        digitalWrite(oe_pin, LOW);
+        digitalWrite(oe_12v, LOW);  // switch the OE pin relay back to 5v control
+        delay(50);  // 50ms delay for relay to switch
+        digitalWrite(ce_pin, LOW);
+
         Serial.write(comm_done);  // send the "done" signal
+        state = 0;  // go back to mode select
         break;
       }
+
+    case 3:
+    {
+
+      write_init();  // initialize for write
+
+      // erase chip following datasheet timing diagram
+      digitalWrite(ce_pin, HIGH);
+      digitalWrite(oe_pin, LOW);
+      digitalWrite(oe_12v, HIGH);
+      delay(50);
+      digitalWrite(ce_pin, LOW);
+      delay(200);
+      digitalWrite(ce_pin, HIGH);
+      delayMicroseconds(4);
+      digitalWrite(oe_12v, LOW);
+      delay(60);
+      digitalWrite(ce_pin, LOW);
+
+      Serial.write(comm_done);  // tell computer we're done
+
+      state = 0;  // go back to mode sel
+      break;
+
+    }
   }
 }
 
@@ -206,7 +240,7 @@ byte read_byte(unsigned int address) {
   digitalWrite(ce_pin, LOW);
   digitalWrite(oe_pin, LOW);
 
-  delayMicroseconds(2);  // wait the required time
+  delayMicroseconds(3);  // wait minumum accurate time to ensure a valid read
 
   // we should have valid data now. read the pins and store in array
   unsigned char read_pins[8] = {0, 0, 0, 0, 0, 0, 0, 0};
@@ -263,6 +297,7 @@ void write_byte(unsigned int address, unsigned char data) {
     
   }
 
+  delayMicroseconds(3);  // wait minimum accurate time to ensure a valid write
   digitalWrite(ce_pin, LOW);  // assert control signals
   delayMicroseconds(18);  // wait for the required time, accounting for slow digitalWrite
   digitalWrite(ce_pin, HIGH);  // de-assert control signals
